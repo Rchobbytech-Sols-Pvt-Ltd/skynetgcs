@@ -1,19 +1,6 @@
 # skynetgcs
 Skynet GCS (Ground Control Software) is a secure, next-generation drone control platform by RCHobbytech Solutions Pvt. Ltd.. It provides encrypted telem, mission planning, firmware, and forensic logging for VTOL and multirotor UAVs. Built with security, compliance at its core, is designed for both operational deployments and research environments.
 
-skynet-gcs/
-├── docs/                # Requirement docs, manuals
-├── src/                 # Core GCS source code
-│   ├── telemetry/       # MAVLink & comm modules
-│   ├── ui/              # Mission planner, video overlay
-│   ├── security/        # Encryption, cert management
-│   ├── firmware/        # Flashing, updates
-│   └── logging/         # Logs, replay, retention
-├── configs/             # Certs, params, map sources
-├── tests/               # Unit & integration tests
-├── scripts/             # Setup, CI/CD, packaging
-└── README.md            # Project overview
-
 
 🚀 Core Functionalities
 
