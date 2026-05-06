@@ -1,0 +1,101 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.22"
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install Wails
+        run: go install github.com/wailsapp/wails/v2/cmd/wails@latest
+
+      - name: Install frontend deps
+        working-directory: frontend
+        run: npm install
+
+      - name: Build Wails app
+        run: wails build -platform windows/amd64 -o skynetgcs.exe
+
+      - name: Install Inno Setup
+        run: choco install innosetup -y --no-progress
+
+      - name: Build installer
+        run: iscc installer\setup.iss
+        shell: cmd
+
+      - name: Package portable zip
+        shell: pwsh
+        run: |
+          $version = "${{ github.ref_name }}"
+          if (-not $version) { $version = "dev" }
+          $zip = "build/skynetgcs-windows-amd64-$version.zip"
+          New-Item -ItemType Directory -Force -Path build | Out-Null
+          Compress-Archive -Path build/bin/skynetgcs.exe -DestinationPath $zip -Force
+
+      - name: Carry forward component zips from current latest release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Pull airunit.zip and hci.zip from whatever release is currently
+          # marked "latest" so the new release we're about to create has them
+          # too. The launcher always queries `releases/latest`, so every
+          # release must include the components for in-app updates to work.
+          $components = @("airunit.zip", "hci.zip")
+          $missing = @()
+          foreach ($name in $components) {
+            $fetched = $false
+            try {
+              gh release download --pattern $name --dir build `
+                --repo $env:GITHUB_REPOSITORY 2>$null
+              if (Test-Path "build/$name") {
+                Write-Host "Carried forward $name from previous release"
+                $fetched = $true
+              }
+            } catch {
+              Write-Warning "Could not fetch ${name}: $_"
+            }
+            if (-not $fetched) { $missing += $name }
+          }
+          if ($missing.Count -gt 0) {
+            Write-Warning "Missing components in this release: $($missing -join ', ')"
+            Write-Warning "The launcher will report 'Resource not found' for these until they are uploaded."
+          }
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: skynetgcs-windows
+          path: |
+            build/bin/skynetgcs.exe
+            build/installer/*.exe
+            build/*.zip
+
+      - name: Create GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            build/installer/*.exe
+            build/*.zip
+          generate_release_notes: true
