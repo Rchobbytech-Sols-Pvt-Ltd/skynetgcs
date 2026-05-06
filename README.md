@@ -1,71 +1,182 @@
-# skynetgcs -RCHT
-Skynet GCS (Ground Control Software) is a secure, next-generation drone control platform by RCHobbytech Solutions Pvt. Ltd.. It provides encrypted telem, mission planning, firmware, and forensic logging for VTOL and multirotor UAVs. Built with security, compliance at its core, is designed for both operational deployments and research environments.
+# Skynet GCS
 
+**Secure, next-generation drone Ground Control Software** by RCHobbytech Solutions Pvt. Ltd.
 
-🚀 Core Functionalities
+Skynet GCS is an encrypted ground control platform for VTOL and multirotor UAVs. It delivers encrypted telemetry, mission planning, signed firmware management, and tamper-proof logging — built for both operational drone deployments and research environments where security and auditability matter.
 
-Telemetry Interface: MAVLink v2 over encrypted TCP/UDP/UART
+---
 
-Drone Authentication: Verified digital certificates only
+## Features
 
-Encrypted Transport: AES-256 + ECC, RSA-4096 handshake
+### Flight & Operations
+- **MAVLink v2 telemetry** over encrypted TCP / UDP / UART
+- **Mission planner** with graphical waypoint design and live execution
+- **Flight modes:** GUIDED, AUTO, RTL
+- **Live RTSP video** with on-screen telemetry overlay
+- **Flight replay** with encrypted mission logs (`.tlog`, `.bin`, `.gpx`)
 
-Mission Planner UI: Graphical waypoint creation & live status
+### Security
+- End-to-end **AES-256-GCM** encryption with ECC + RSA-4096 handshake
+- **Certificate-based drone authentication** — only pre-registered drones connect
+- **Signed firmware verification** before flashing
+- **Role-based access control** (User / Developer / Admin)
+- **Secure boot** — binary hash verification before launch
+- OS hardening: USB autorun disabled, restricted ports, audit logging
+- SHA-256 integrity hashing on all logs
 
-Live Video: RTSP feed overlay with OSD telemetry
+### Interfaces
+- **Map engines:** offline TileServer, Bing, Google, OSM, DSM
+- **Input devices:** joystick, gamepad, touchscreen, mouse
+- **Video:** RTSP / H.264 + optional AI object-detection overlay
 
-Flight Control: GUIDED, AUTO, RTL modes
+### Compliance & Safety
+- GPS, battery, and temperature warning thresholds
+- 2-year encrypted data retention
+- Secure handshake required before any flight operation
 
-Firmware Security: Signed firmware flashing with verification
+---
 
-Logs & Replay: Encrypted mission logs + SHA-256 integrity + flight replay
+## System Requirements
 
-🔒 Security & Access Control
+| | Minimum | Recommended |
+|--|--|--|
+| **OS** | Windows 10 (1909+) | Windows 11 |
+| **Architecture** | 64-bit (x64) | 64-bit (x64) |
+| **RAM** | 8 GB | 16 GB |
+| **Free disk space** | 500 MB | 1 GB |
+| **Network** | Required for activation & updates | Stable broadband |
 
-End-to-end AES-256-GCM encryption
+You'll need administrator rights for the **installation only**, not for everyday use.
 
-Certificate-based access control (exclusive pre-registered drones)
+---
 
-Secure certificate store for drone identities
+## Installation
 
-Firmware signing & verification with internal CA
+### 1. Download the installer
 
-Role-based access control (User / Developer / Admin)
+Get the latest `SkynetGCS-Setup-vX.Y.Z.exe` from the [official releases page](https://github.com/jhakrishan20/skynetgcs/releases/latest).
 
-OS hardening: disabled USB autorun, restricted ports, audit logs
+> Always download from the official link above. Do not install Skynet GCS from third-party mirrors.
 
-Secure Boot: binary hash verification before launch
+### 2. Run setup
 
-🌍 Interfaces
+Double-click the installer. Windows SmartScreen may warn you the first time — click **More info → Run anyway** to continue.
 
-Telemetry: Encrypted MAVLink v2
+The installer will:
+- Install the launcher to `C:\Program Files\Skynet GCS\`
+- Create Start Menu shortcuts (and a Desktop shortcut if you opt in)
+- Offer to launch the app when finished
 
-Video: RTSP / H.264 + AI object detection overlay (optional)
+### 3. Activate your license (first launch only)
 
-Map Engine: Offline TileServer + Bing/Google/OSM/DSM
+The first time you open Skynet GCS, you'll see the **Activation** screen.
 
-Input Devices: Joystick, Gamepad, Touchscreen, Mouse
+1. Enter the activation key from your purchase email (format: `XXXX-XXXX-XXXX-XXXX`).
+2. Click **Activate**.
+3. Wait for the green confirmation — you'll be routed to the dashboard automatically.
 
-Logging: .tlog, .bin, .gpx with encryption + integrity hashes
+> **One license = one machine.** Activation keys are bound to your computer's hardware fingerprint. To transfer a license to another machine, contact support.
 
-✅ Compliance & Safety
+---
 
-GPS / battery / temperature warnings
+## Using Skynet GCS
 
-2-year encrypted data retention
+The dashboard shows the **Skynet GCS** application with a status indicator and a **Launch** button.
 
-Legal compliance: secure handshake required for operation
+### Status indicator
 
-🔮 Future Roadmap
+A small colored dot next to the app name shows the current state:
 
-AI anomaly detection (real-time behaviour monitoring)
+| Color | Meaning |
+|--|--|
+| 🔴 **Red** | Stopped — not running |
+| 🟠 **Orange** (pulsing) | Starting up or shutting down |
+| 🟢 **Green** | All components are running |
 
-Mission scripting (Python engine for automation)
+### To start the application
 
-Blockchain audit trail for immutable logs
+Click **Launch**. Skynet GCS will:
+1. Start the `airunit` and `hci` components in parallel
+2. Show "Launching..." while they come up
+3. Switch the button to red **Stop** when everything is running
 
-AR HUD for live mission overlays
+### To stop
 
-Geofencing with autonomous no-fly handling
+Click **Stop**. Both components are terminated cleanly and the launcher returns to idle.
 
+> Closing the launcher window also stops every running component automatically.
 
+---
+
+## Updates
+
+Skynet GCS checks our official release server for updates. When a new version is available, the launcher can download and install it in place — no manual reinstall needed.
+
+The update process:
+1. Stops running components
+2. Downloads the latest `airunit` and `hci` modules
+3. Verifies and extracts them
+4. Restarts everything
+
+You can keep using older versions, but for security patches we recommend staying current.
+
+---
+
+## Troubleshooting
+
+### "Invalid activation key"
+- Check the key for typos — it's case-sensitive and there are no spaces.
+- The key may have already been activated on a different machine. Contact support to transfer it.
+
+### "No internet connection"
+- The launcher must reach our license and update servers. Check your network.
+- Corporate firewalls sometimes block outbound HTTPS. Ask IT to allowlist Skynet servers.
+
+### "This key is already activated on another machine"
+- One license is bound to one machine. Contact support if you need to migrate.
+
+### "Resource not found" when clicking Launch
+- The drone components (`airunit`, `hci`) aren't installed yet, or are corrupted.
+- Use the in-app update flow to fetch them, or reinstall Skynet GCS.
+
+### App won't open after installation
+- Confirm your Windows version meets the requirements above.
+- Try running once as Administrator (right-click the shortcut → **Run as administrator**).
+- Check `%APPDATA%\SkynetGCS\` for log files when reporting issues.
+
+### Where is my data stored?
+- **Activation file:** `%APPDATA%\SkynetGCS\activation.json`
+- **Application binaries:** `C:\Program Files\Skynet GCS\` (or your custom install path)
+
+---
+
+## Uninstalling
+
+**Settings → Apps → Installed apps → Skynet GCS → Uninstall**, or run the uninstaller from the Start Menu folder.
+
+To remove user data as well (activation, cached files):
+
+```powershell
+Remove-Item $env:APPDATA\SkynetGCS -Recurse -Force
+```
+
+---
+
+## Support
+
+- **Email:** skynetintel@dronestechlab.com
+- **Issues / bug reports:** https://github.com/jhakrishan20/skynetgcs/issues
+- **Documentation:** https://github.com/jhakrishan20/skynetgcs
+
+When reporting a problem, please include:
+- Your Skynet GCS version (visible in the launcher window title or About dialog)
+- Windows version (`winver`)
+- A description of what you were doing when the issue occurred
+
+---
+
+## License
+
+© 2026 RCHobbytech Solutions Pvt. Ltd. All rights reserved.
+
+See [LICENSE](LICENSE) for the full license terms.
