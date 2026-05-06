@@ -1,0 +1,20 @@
+{
+  "$schema": "https://wails.io/schemas/config.v2.json",
+  "name": "skynetgcs",
+  "outputfilename": "skynetgcs",
+  "frontend:install": "npm install",
+  "frontend:build": "npm run build",
+  "frontend:dev:watcher": "npm run dev",
+  "frontend:dev:serverUrl": "auto",
+  "author": {
+    "name": "Skynet GCS",
+    "email": "skynetintel@dronestechlab.com"
+  },
+  "info": {
+    "companyName": "Drones Tech Lab",
+    "productName": "Skynet GCS",
+    "productVersion": "0.1.0",
+    "copyright": "Copyright (c) 2026 Drones Tech Lab",
+    "comments": "Ground Control Station launcher"
+  }
+}
