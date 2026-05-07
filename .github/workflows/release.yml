@@ -57,25 +57,32 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          # Pull airunit.zip and hci.zip from whatever release is currently
-          # marked "latest" so the new release we're about to create has them
-          # too. The launcher always queries `releases/latest`, so every
-          # release must include the components for in-app updates to work.
-          $components = @("airunit.zip", "hci.zip")
+          # Pull AirUnit and HCI component zips from whatever release is
+          # currently marked "latest" so the new release we're about to
+          # create has them too. The launcher always queries
+          # `releases/latest`, so every release must include the components
+          # for in-app updates to work.
+          #
+          # Match by glob prefix — release files may carry version suffixes
+          # like "AirUnit v1.2.2-alpha.zip".
+          $patterns = @("AirUnit*.zip", "HCI*.zip")
           $missing = @()
-          foreach ($name in $components) {
-            $fetched = $false
+          foreach ($pattern in $patterns) {
+            $before = @(Get-ChildItem build -Filter $pattern -ErrorAction SilentlyContinue).Count
             try {
-              gh release download --pattern $name --dir build `
+              gh release download --pattern $pattern --dir build `
                 --repo $env:GITHUB_REPOSITORY 2>$null
-              if (Test-Path "build/$name") {
-                Write-Host "Carried forward $name from previous release"
-                $fetched = $true
-              }
             } catch {
-              Write-Warning "Could not fetch ${name}: $_"
+              Write-Warning "Could not fetch ${pattern}: $_"
             }
-            if (-not $fetched) { $missing += $name }
+            $matched = @(Get-ChildItem build -Filter $pattern -ErrorAction SilentlyContinue)
+            if ($matched.Count -gt $before) {
+              foreach ($f in $matched) {
+                Write-Host "Carried forward $($f.Name) from previous release"
+              }
+            } else {
+              $missing += $pattern
+            }
           }
           if ($missing.Count -gt 0) {
             Write-Warning "Missing components in this release: $($missing -join ', ')"

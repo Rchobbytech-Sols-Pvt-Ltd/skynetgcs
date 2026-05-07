@@ -86,20 +86,20 @@ func DownloadAndApply(release *ReleaseInfo) error {
 
 	var missing []string
 	for _, c := range config.Components {
-		asset := findAsset(release.Assets, c.AssetName)
+		asset := findAsset(release.Assets, c.AssetPrefix)
 		if asset == nil {
-			missing = append(missing, c.AssetName)
+			missing = append(missing, c.AssetPrefix)
 			continue
 		}
 
 		zipPath := filepath.Join(tmpDir, asset.Name)
 		if err := download(asset.BrowserDownloadURL, zipPath); err != nil {
-			return fmt.Errorf("download %s: %w", c.AssetName, err)
+			return fmt.Errorf("download %s: %w", c.AssetPrefix, err)
 		}
 
 		dest := filepath.Join(installDir, c.Subdir)
 		if err := Extract(zipPath, dest); err != nil {
-			return fmt.Errorf("extract %s: %w", c.AssetName, err)
+			return fmt.Errorf("extract %s: %w", c.AssetPrefix, err)
 		}
 	}
 
@@ -109,10 +109,15 @@ func DownloadAndApply(release *ReleaseInfo) error {
 	return nil
 }
 
-func findAsset(assets []ReleaseAsset, name string) *ReleaseAsset {
-	target := strings.ToLower(name)
+// findAsset returns the first release asset whose filename starts with the
+// given prefix (case-insensitive) and ends with ".zip". This lets release
+// artifacts include arbitrary version suffixes — e.g. a prefix of "AirUnit"
+// matches "AirUnit v1.2.2-alpha.zip", "airunit v1.3.0.zip", etc.
+func findAsset(assets []ReleaseAsset, prefix string) *ReleaseAsset {
+	p := strings.ToLower(prefix)
 	for i, a := range assets {
-		if strings.ToLower(a.Name) == target {
+		n := strings.ToLower(a.Name)
+		if strings.HasPrefix(n, p) && strings.HasSuffix(n, ".zip") {
 			return &assets[i]
 		}
 	}
