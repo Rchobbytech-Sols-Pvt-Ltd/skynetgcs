@@ -2,6 +2,7 @@ package updater
 
 import (
 	"archive/zip"
+	"context"
 	"fmt"
 	"io"
 	"os"
@@ -10,6 +11,10 @@ import (
 )
 
 func Extract(zipPath, destDir string) error {
+	return ExtractContext(context.Background(), zipPath, destDir)
+}
+
+func ExtractContext(ctx context.Context, zipPath, destDir string) error {
 	r, err := zip.OpenReader(zipPath)
 	if err != nil {
 		return err
@@ -21,14 +26,17 @@ func Extract(zipPath, destDir string) error {
 	}
 
 	for _, f := range r.File {
-		if err := extractEntry(f, destDir); err != nil {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		if err := extractEntry(ctx, f, destDir); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func extractEntry(f *zip.File, destDir string) error {
+func extractEntry(ctx context.Context, f *zip.File, destDir string) error {
 	target := filepath.Join(destDir, f.Name)
 
 	if !strings.HasPrefix(target, filepath.Clean(destDir)+string(os.PathSeparator)) &&
@@ -56,6 +64,18 @@ func extractEntry(f *zip.File, destDir string) error {
 	}
 	defer rc.Close()
 
-	_, err = io.Copy(out, rc)
+	_, err = io.Copy(out, &contextReader{ctx: ctx, reader: rc})
 	return err
+}
+
+type contextReader struct {
+	ctx    context.Context
+	reader io.Reader
+}
+
+func (r *contextReader) Read(p []byte) (int, error) {
+	if err := r.ctx.Err(); err != nil {
+		return 0, err
+	}
+	return r.reader.Read(p)
 }

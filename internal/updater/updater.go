@@ -1,6 +1,7 @@
 package updater
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -31,17 +32,51 @@ type ReleaseInfo struct {
 	Assets      []ReleaseAsset `json:"assets"`
 }
 
+type UpdateCheckResult struct {
+	UpdateAvailable bool         `json:"update_available"`
+	CurrentVersion  string       `json:"current_version"`
+	LatestVersion   string       `json:"latest_version"`
+	Release         *ReleaseInfo `json:"release,omitempty"`
+}
+
+type ProgressFunc func(downloadedBytes, totalBytes int64)
+type byteProgressFunc func(bytesRead int64)
+
+type componentAsset struct {
+	component config.Component
+	asset     *ReleaseAsset
+}
+
 func githubLatestURL() string {
 	return fmt.Sprintf("https://api.github.com/repos/%s/%s/releases/latest",
 		config.GitHubOwner, config.GitHubRepo)
 }
 
+func CheckForUpdate() (*UpdateCheckResult, error) {
+	log.Printf("[updater] Checking for updates. Current version: %s", config.AppVersion)
+	release, err := CheckLatest()
+	if err != nil {
+		log.Printf("[updater] Check for updates failed: %v", err)
+		return nil, err
+	}
+
+	log.Printf("[updater] Latest release found: %s", release.TagName)
+	return &UpdateCheckResult{
+		UpdateAvailable: IsNewer(release),
+		CurrentVersion:  config.AppVersion,
+		LatestVersion:   release.TagName,
+		Release:         release,
+	}, nil
+}
+
 func CheckLatest() (*ReleaseInfo, error) {
-	req, err := http.NewRequest(http.MethodGet, githubLatestURL(), nil)
+	url := githubLatestURL()
+	req, err := http.NewRequest(http.MethodGet, url, nil)
 	if err != nil {
 		return nil, err
 	}
 	req.Header.Set("Accept", "application/vnd.github+json")
+	req.Header.Set("User-Agent", config.AppName)
 
 	client := &http.Client{Timeout: 20 * time.Second}
 	resp, err := client.Do(req)
@@ -51,7 +86,8 @@ func CheckLatest() (*ReleaseInfo, error) {
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("github releases: status %d", resp.StatusCode)
+		body, _ := io.ReadAll(io.LimitReader(resp.Body, 512))
+		return nil, fmt.Errorf("github releases %s: status %d: %s", url, resp.StatusCode, strings.TrimSpace(string(body)))
 	}
 
 	var info ReleaseInfo
@@ -71,12 +107,16 @@ func IsNewer(release *ReleaseInfo) bool {
 }
 
 func DownloadAndApply(release *ReleaseInfo) error {
+	return DownloadAndApplyContext(context.Background(), release)
+}
+
+func DownloadAndApplyContext(ctx context.Context, release *ReleaseInfo, progressFns ...ProgressFunc) error {
 	if release == nil {
 		return fmt.Errorf("nil release")
 	}
 	log.Printf("[updater] Starting update to version: %s", release.TagName)
 
-	// Implementation Note: In a real scenario, you should call 
+	// Implementation Note: In a real scenario, you should call
 	// a 'StopAll' command here to ensure files are not locked
 	// by running processes before extraction.
 
@@ -86,7 +126,7 @@ func DownloadAndApply(release *ReleaseInfo) error {
 	}
 	installDir := filepath.Dir(exePath)
 
-	// If running from build/bin, ensure updates are applied to the 
+	// If running from build/bin, ensure updates are applied to the
 	// project root instead of the build folder.
 	if strings.HasSuffix(filepath.ToSlash(installDir), "/build/bin") {
 		installDir = filepath.Dir(filepath.Dir(installDir))
@@ -100,32 +140,60 @@ func DownloadAndApply(release *ReleaseInfo) error {
 	defer os.RemoveAll(tmpDir)
 
 	var missing []string
+	var downloads []componentAsset
+	var totalBytes int64
 	for _, c := range config.Components {
 		asset := findAsset(release.Assets, c.AssetPrefix)
 		if asset == nil {
 			missing = append(missing, c.AssetPrefix)
 			continue
 		}
-
-		zipPath := filepath.Join(tmpDir, asset.Name)
-		log.Printf("[updater] Downloading %s from %s", asset.Name, asset.BrowserDownloadURL)
-		if err := download(asset.BrowserDownloadURL, zipPath); err != nil {
-			return fmt.Errorf("download %s: %w", c.AssetPrefix, err)
-		}
-
-		dest := filepath.Join(installDir, c.Subdir)
-		log.Printf("[updater] Extracting %s to %s", asset.Name, dest)
-		if err := Extract(zipPath, dest); err != nil {
-			return fmt.Errorf("extract %s: %w", c.AssetPrefix, err)
-		}
+		downloads = append(downloads, componentAsset{component: c, asset: asset})
+		totalBytes += asset.Size
 	}
 
 	if len(missing) > 0 {
 		return errors.New("missing release assets: " + strings.Join(missing, ", "))
 	}
 
+	var downloadedBytes int64
+	reportProgress(progressFns, downloadedBytes, totalBytes)
+
+	for _, item := range downloads {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+
+		zipPath := filepath.Join(tmpDir, item.asset.Name)
+		log.Printf("[updater] Downloading %s from %s", item.asset.Name, item.asset.BrowserDownloadURL)
+		if err := download(ctx, item.asset.BrowserDownloadURL, zipPath, func(n int64) {
+			downloadedBytes += n
+			reportProgress(progressFns, downloadedBytes, totalBytes)
+		}); err != nil {
+			return fmt.Errorf("download %s: %w", item.component.AssetPrefix, err)
+		}
+
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+
+		dest := filepath.Join(installDir, item.component.Subdir)
+		log.Printf("[updater] Extracting %s to %s", item.asset.Name, dest)
+		if err := ExtractContext(ctx, zipPath, dest); err != nil {
+			return fmt.Errorf("extract %s: %w", item.component.AssetPrefix, err)
+		}
+	}
+
 	refreshIconCache()
 	return nil
+}
+
+func reportProgress(progressFns []ProgressFunc, downloadedBytes, totalBytes int64) {
+	for _, fn := range progressFns {
+		if fn != nil {
+			fn(downloadedBytes, totalBytes)
+		}
+	}
 }
 
 // refreshIconCache notifies the Windows Shell that icons or associations have changed.
@@ -154,8 +222,14 @@ func findAsset(assets []ReleaseAsset, prefix string) *ReleaseAsset {
 	return nil
 }
 
-func download(url, dest string) error {
-	resp, err := http.Get(url)
+func download(ctx context.Context, url, dest string, progress byteProgressFunc) error {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return err
+	}
+	req.Header.Set("User-Agent", config.AppName)
+
+	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		return err
 	}
@@ -171,6 +245,26 @@ func download(url, dest string) error {
 	}
 	defer out.Close()
 
-	_, err = io.Copy(out, resp.Body)
-	return err
+	buf := make([]byte, 64*1024)
+	for {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+
+		n, readErr := resp.Body.Read(buf)
+		if n > 0 {
+			if _, err := out.Write(buf[:n]); err != nil {
+				return err
+			}
+			if progress != nil {
+				progress(int64(n))
+			}
+		}
+		if readErr == io.EOF {
+			return nil
+		}
+		if readErr != nil {
+			return readErr
+		}
+	}
 }
