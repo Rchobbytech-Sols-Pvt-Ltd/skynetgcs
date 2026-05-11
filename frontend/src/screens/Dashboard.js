@@ -6,6 +6,8 @@
 
 const POLL_INTERVAL_MS = 3000;
 const MIN_LAUNCH_DELAY_MS = 1000;
+const MIN_STOP_DELAY_MS = 1000;
+const MIN_UPDATE_CHECK_DELAY_MS = 1000;
 
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -49,25 +51,67 @@ export function renderDashboard(root) {
               </div>
               <span id="app-status" class="app-subtitle">Stopped</span>
             </div>
-            <button id="primary-btn" class="action-btn">Launch</button>
+            <div class="app-actions">
+              <button id="update-btn" class="icon-btn" type="button" title="Check for updates" aria-label="Check for updates">
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M12 3v12"></path>
+                  <path d="m7 10 5 5 5-5"></path>
+                  <path d="M5 21h14"></path>
+                </svg>
+              </button>
+              <button id="primary-btn" class="action-btn">Launch</button>
+            </div>
           </li>
         </ul>
         <p id="control-error" class="error" hidden></p>
       </section>
+      <div id="update-backdrop" class="modal-backdrop" hidden>
+        <section class="update-popup" role="dialog" aria-modal="true" aria-labelledby="update-title">
+          <span id="download-indicator" class="download-indicator" title="Downloading" aria-label="Downloading" hidden>
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M12 3v12"></path>
+              <path d="m7 10 5 5 5-5"></path>
+              <path d="M5 21h14"></path>
+            </svg>
+            <span id="download-percent" class="download-percent">0%</span>
+          </span>
+          <button id="update-close-btn" class="modal-close" type="button" aria-label="Close update dialog">&times;</button>
+          <h3 id="update-title">Updates</h3>
+          <p id="update-message" class="update-message">Checking for updates...</p>
+          <div id="update-progress" class="update-progress">
+            <span class="spinner"></span>
+          </div>
+          <button id="download-update-btn" class="action-btn download" type="button" hidden>Download latest</button>
+        </section>
+      </div>
     </main>
   `;
 
   const btn = root.querySelector("#primary-btn");
+  const updateBtn = root.querySelector("#update-btn");
+  const updateBackdrop = root.querySelector("#update-backdrop");
+  const updateCloseBtn = root.querySelector("#update-close-btn");
+  const updateMessageEl = root.querySelector("#update-message");
+  const updateProgressEl = root.querySelector("#update-progress");
+  const downloadIndicatorEl = root.querySelector("#download-indicator");
+  const downloadPercentEl = root.querySelector("#download-percent");
+  const downloadUpdateBtn = root.querySelector("#download-update-btn");
   const statusEl = root.querySelector("#app-status");
   const dotEl = root.querySelector("#status-dot");
   const errorEl = root.querySelector("#control-error");
 
   let state = "idle";
+  let latestRelease = null;
+  let updateChecking = false;
+  let downloadInProgress = false;
+  let downloadRunId = 0;
+  let downloadProgressTimer = null;
   let pollTimer = null;
 
   function render() {
-    btn.classList.remove("danger");
+    btn.classList.remove("danger", "pending");
     btn.disabled = false;
+    updateBtn.disabled = updateChecking || state === "running";
 
     const dotClass = {
       idle: "idle",
@@ -85,6 +129,7 @@ export function renderDashboard(root) {
         break;
 
       case "starting":
+        btn.classList.add("pending");
         btn.innerHTML = `<span class="btn-spinner"></span><span>Launching...</span>`;
         btn.disabled = true;
         statusEl.textContent = "Launching...";
@@ -100,6 +145,7 @@ export function renderDashboard(root) {
         break;
 
       case "stopping":
+        btn.classList.add("pending");
         btn.innerHTML = `<span class="btn-spinner"></span><span>Stopping...</span>`;
         btn.disabled = true;
         statusEl.textContent = "Stopping...";
@@ -117,6 +163,83 @@ export function renderDashboard(root) {
   function clearError() {
     errorEl.hidden = true;
     errorEl.textContent = "";
+  }
+
+  function setUpdatePopup({
+    message,
+    checking = false,
+    release = null,
+    tone = "neutral",
+    downloading = false,
+  }) {
+    latestRelease = release;
+    downloadInProgress = downloading;
+    updateMessageEl.textContent = message;
+    updateMessageEl.className = `update-message ${tone}`;
+    updateProgressEl.hidden = !checking;
+    downloadUpdateBtn.hidden = !release;
+    downloadIndicatorEl.hidden = !downloading;
+    if (downloading) downloadPercentEl.textContent = "0%";
+    downloadUpdateBtn.classList.toggle("danger", downloading);
+    downloadUpdateBtn.classList.toggle("download", !downloading);
+    downloadUpdateBtn.textContent = downloading ? "Cancel download" : "Download latest";
+  }
+
+  function stopDownloadProgressPolling() {
+    if (downloadProgressTimer) {
+      clearInterval(downloadProgressTimer);
+      downloadProgressTimer = null;
+    }
+  }
+
+  async function refreshDownloadProgress() {
+    try {
+      const status = await window.go.main.App.UpdateStatus();
+      const percent = Math.max(0, Math.min(100, Number(status?.percent || 0)));
+      downloadPercentEl.textContent = `${percent}%`;
+    } catch (err) {
+      console.error("[Dashboard] Update status error:", err);
+    }
+  }
+
+  function startDownloadProgressPolling() {
+    stopDownloadProgressPolling();
+    refreshDownloadProgress();
+    downloadProgressTimer = setInterval(refreshDownloadProgress, 250);
+  }
+
+  async function checkForUpdates() {
+    updateBackdrop.hidden = false;
+    updateChecking = true;
+    render();
+    setUpdatePopup({ message: "Checking for updates...", checking: true, tone: "pending" });
+    const minDelay = wait(MIN_UPDATE_CHECK_DELAY_MS);
+
+    try {
+      const result = await window.go.main.App.CheckForUpdates();
+      await minDelay;
+      if (result?.update_available && result.release) {
+        const version = result.latest_version || result.release.tag_name || "latest";
+        setUpdatePopup({
+          message: `Update ${version} is available.`,
+          release: result.release,
+          tone: "pending",
+        });
+        return;
+      }
+
+      const version = result?.current_version || "current version";
+      setUpdatePopup({
+        message: `No new update available. You are on ${version}.`,
+        tone: "success",
+      });
+    } catch (err) {
+      await minDelay;
+      setUpdatePopup({ message: err.message || String(err), tone: "error" });
+    } finally {
+      updateChecking = false;
+      render();
+    }
   }
 
   async function start() {
@@ -160,13 +283,16 @@ export function renderDashboard(root) {
     state = "stopping";
     console.log("[Dashboard] Stopping apps...");
     render();
+    const minDelay = wait(MIN_STOP_DELAY_MS);
 
     try {
       await window.go.main.App.StopApps();
+      await minDelay;
       const items = await window.go.main.App.AppsStatus();
       const anyRunning = items.some((i) => i.running);
       state = anyRunning ? "running" : "idle";
     } catch (err) {
+      await minDelay;
       showError(err.message || String(err));
       const items = await window.go.main.App.AppsStatus().catch(() => []);
       state = items.some((i) => i.running) ? "running" : "idle";
@@ -186,9 +312,82 @@ export function renderDashboard(root) {
     }
   }
 
+  async function cancelDownloadAndClose() {
+    const wasDownloading = downloadInProgress;
+    downloadRunId += 1;
+    downloadInProgress = false;
+    stopDownloadProgressPolling();
+    downloadIndicatorEl.hidden = true;
+    updateBackdrop.hidden = true;
+
+    if (wasDownloading) {
+      await window.go.main.App.CancelUpdate().catch((err) => {
+        console.error("[Dashboard] Cancel update error:", err);
+      });
+    }
+  }
+
+  async function startDownload() {
+    if (!latestRelease || downloadInProgress) return;
+
+    const runId = downloadRunId + 1;
+    downloadRunId = runId;
+    setUpdatePopup({
+      message: `Downloading ${latestRelease.tag_name || latestRelease.name || "the latest update"}...`,
+      release: latestRelease,
+      tone: "pending",
+      downloading: true,
+    });
+    startDownloadProgressPolling();
+
+    try {
+      await window.go.main.App.DownloadUpdate(latestRelease);
+      if (downloadRunId !== runId) return;
+      stopDownloadProgressPolling();
+      downloadPercentEl.textContent = "100%";
+      setUpdatePopup({
+        message: "Update downloaded successfully.",
+        tone: "success",
+      });
+    } catch (err) {
+      if (downloadRunId !== runId) return;
+      stopDownloadProgressPolling();
+      const message = err.message || String(err);
+      setUpdatePopup({
+        message: message.includes("canceled") || message.includes("cancelled")
+          ? "Download cancelled."
+          : message,
+        release: latestRelease,
+        tone: message.includes("canceled") || message.includes("cancelled") ? "pending" : "error",
+      });
+    }
+  }
+
   btn.addEventListener("click", () => {
     if (state === "idle") start();
     else if (state === "running") stop();
+  });
+
+  updateBtn.addEventListener("click", checkForUpdates);
+
+  updateCloseBtn.addEventListener("click", () => {
+    cancelDownloadAndClose();
+  });
+
+  updateBackdrop.addEventListener("click", (event) => {
+    if (event.target === updateBackdrop) {
+      cancelDownloadAndClose();
+    }
+  });
+
+  downloadUpdateBtn.addEventListener("click", () => {
+    if (!latestRelease) return;
+    if (downloadInProgress) {
+      cancelDownloadAndClose();
+      return;
+    }
+
+    startDownload();
   });
 
   syncFromBackend();
@@ -196,5 +395,6 @@ export function renderDashboard(root) {
 
   return () => {
     clearInterval(pollTimer);
+    stopDownloadProgressPolling();
   };
 }
