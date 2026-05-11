@@ -5,7 +5,7 @@ const (
 	SupabaseAPIKey = "sb_publishable_KHpfCmBYjl2oTA_PDePrCA_BND5N2RQ"
 	ActivateRoute  = "/functions/v1/activate"
 
-	GitHubOwner = "jhakrishan20"
+	GitHubOwner = "Rchobbytech-Sols-Pvt-Ltd"
 	GitHubRepo  = "skynetgcs"
 
 	AppName    = "SkynetGCS"
@@ -27,6 +27,8 @@ type Component struct {
 }
 
 var Components = []Component{
-	{AssetPrefix: "AirUnit", Subdir: "airunit", Exe: "airunit.exe"},
-	{AssetPrefix: "HCI", Subdir: "hci", Exe: "hci.exe"},
+	// {AssetPrefix: "AirUnit", Subdir: "airunit", Exe: "airunit.exe"},
+	// {AssetPrefix: "HCI", Subdir: "hci", Exe: "hci.exe"},
+	{AssetPrefix: "AirUnit", Subdir: "airunit", Exe: "airunit/airunit.exe"},
+	{AssetPrefix: "Human_Computer_Interface", Subdir: "Human_Computer_Interface", Exe: "appHuman_Computer_interface.exe"},
 }
