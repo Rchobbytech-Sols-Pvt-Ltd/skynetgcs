@@ -12,6 +12,7 @@ Thumbs.db
 .idea/
 airunit/
 hci/
+Human_Computer_Interface/
 
 # Local mock implementations (built with -tags=mock)
 internal/activation/activation_mock.go
