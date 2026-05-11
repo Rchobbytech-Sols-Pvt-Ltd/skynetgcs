@@ -10,6 +10,8 @@ frontend/dist/
 Thumbs.db
 .vscode/
 .idea/
+airunit/
+hci/
 
 # Local mock implementations (built with -tags=mock)
 internal/activation/activation_mock.go

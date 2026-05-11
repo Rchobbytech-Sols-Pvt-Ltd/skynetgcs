@@ -4,6 +4,8 @@ import (
 	"context"
 	"embed"
 	"log"
+	"net"
+	"os"
 
 	"github.com/jhakrishan20/skynetgcs/internal/activation"
 	"github.com/jhakrishan20/skynetgcs/internal/launcher"
@@ -72,9 +74,18 @@ func (a *App) AppsStatus() []launcher.ChildStatus {
 }
 
 func main() {
+	// Ensure only one instance of the app runs at a time by attempting to listen on a local port.
+	// The OS will automatically release this lock if the process crashes or exits.
+	l, err := net.Listen("tcp", "127.0.0.1:43215")
+	if err != nil {
+		// Another instance is likely running; exit silently.
+		os.Exit(0)
+	}
+	defer l.Close()
+
 	app := NewApp()
 
-	err := wails.Run(&options.App{
+	err = wails.Run(&options.App{
 		Title:  "Skynet GCS",
 		Width:  1200,
 		Height: 800,

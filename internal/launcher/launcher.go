@@ -76,11 +76,17 @@ func (m *Manager) startOne(base string, c config.Component) ChildStatus {
 		return status
 	}
 
+	// Search strategy: 1. check the designated subdirectory, 2. fallback to root directory
 	exePath := filepath.Join(base, c.Subdir, c.Exe)
 	if _, err := os.Stat(exePath); err != nil {
-		log.Printf("[launcher] %s not installed: %s (%v)", c.Subdir, exePath, err)
-		status.Code = CodeNotInstalled
-		return status
+		// Fallback: Check if the executable is sitting directly in the root next to the launcher
+		exePath = filepath.Join(base, c.Exe)
+		if _, err := os.Stat(exePath); err != nil {
+			log.Printf("[launcher] %s not found in subdirectory or root: %v", c.Subdir, err)
+			status.Code = CodeNotInstalled
+			return status
+		}
+		log.Printf("[launcher] %s found in root directory fallback", c.Subdir)
 	}
 
 	cmd := exec.Command(exePath)
