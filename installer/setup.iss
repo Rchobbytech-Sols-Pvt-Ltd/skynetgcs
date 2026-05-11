@@ -16,6 +16,7 @@ DefaultGroupName={#AppName}
 DisableProgramGroupPage=yes
 OutputDir=..\build\installer
 OutputBaseFilename=skynetgcs-setup
+SetupIconFile=..\build\windows\icon.ico
 Compression=lzma2
 SolidCompression=yes
 WizardStyle=modern

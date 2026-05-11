@@ -91,7 +91,6 @@ func (m *Manager) startOne(base string, c config.Component) ChildStatus {
 
 	cmd := exec.Command(exePath)
 	cmd.Dir = filepath.Dir(exePath)
-	hideConsole(cmd)
 
 	if err := cmd.Start(); err != nil {
 		log.Printf("[launcher] %s spawn failed: %v", c.Subdir, err)
