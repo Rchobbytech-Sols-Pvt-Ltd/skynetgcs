@@ -72,11 +72,21 @@ func DownloadAndApply(release *ReleaseInfo) error {
 		return fmt.Errorf("nil release")
 	}
 
+	// Implementation Note: In a real scenario, you should call 
+	// a 'StopAll' command here to ensure files are not locked
+	// by running processes before extraction.
+
 	exePath, err := os.Executable()
 	if err != nil {
 		return err
 	}
 	installDir := filepath.Dir(exePath)
+
+	// If running from build/bin, ensure updates are applied to the 
+	// project root instead of the build folder.
+	if strings.HasSuffix(filepath.ToSlash(installDir), "/build/bin") {
+		installDir = filepath.Dir(filepath.Dir(installDir))
+	}
 
 	tmpDir, err := os.MkdirTemp("", "skynetgcs-update-*")
 	if err != nil {

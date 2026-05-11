@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"sync"
 
 	"github.com/jhakrishan20/skynetgcs/internal/config"
@@ -38,7 +39,16 @@ func installDir() (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return filepath.Dir(exe), nil
+	dir := filepath.Dir(exe)
+
+	// If running from Wails/Go default build output (build/bin), 
+	// go up to the project root to find sub-resources.
+	// This ensures "skynetgcs/airunit" structure works in both dev and prod.
+	if strings.HasSuffix(filepath.ToSlash(dir), "/build/bin") {
+		return filepath.Dir(filepath.Dir(dir)), nil
+	}
+
+	return dir, nil
 }
 
 func (m *Manager) StartAll() ([]ChildStatus, error) {
