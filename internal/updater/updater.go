@@ -8,7 +8,9 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/jhakrishan20/skynetgcs/internal/config"
@@ -116,7 +118,20 @@ func DownloadAndApply(release *ReleaseInfo) error {
 	if len(missing) > 0 {
 		return errors.New("missing release assets: " + strings.Join(missing, ", "))
 	}
+
+	refreshIconCache()
 	return nil
+}
+
+// refreshIconCache notifies the Windows Shell that icons or associations have changed.
+// This helps resolve the common issue where Windows shows a cached "old" icon.
+func refreshIconCache() {
+	if runtime.GOOS == "windows" {
+		shell32 := syscall.NewLazyDLL("shell32.dll")
+		proc := shell32.NewProc("SHChangeNotify")
+		// SHCNE_ASSOCCHANGED = 0x08000000, SHCNF_IDLIST = 0
+		_, _, _ = proc.Call(0x08000000, 0, 0, 0)
+	}
 }
 
 // findAsset returns the first release asset whose filename starts with the
