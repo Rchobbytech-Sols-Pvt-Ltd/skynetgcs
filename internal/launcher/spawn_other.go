@@ -4,4 +4,18 @@ package launcher
 
 import "os/exec"
 
-func hideConsole(cmd *exec.Cmd) {}
+func startProcess(exePath, dir string, env []string) (*childProcess, error) {
+	cmd := exec.Command(exePath)
+	cmd.Dir = dir
+	cmd.Env = env
+
+	if err := cmd.Start(); err != nil {
+		return nil, err
+	}
+
+	return &childProcess{
+		pid:  cmd.Process.Pid,
+		kill: cmd.Process.Kill,
+		wait: cmd.Wait,
+	}, nil
+}

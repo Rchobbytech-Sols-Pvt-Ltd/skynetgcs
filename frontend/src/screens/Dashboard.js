@@ -122,6 +122,7 @@ export function renderDashboard(root) {
   async function start() {
     clearError();
     state = "starting";
+    console.log("[Dashboard] Starting apps...");
     render();
 
     const minDelay = wait(MIN_LAUNCH_DELAY_MS);
@@ -129,9 +130,11 @@ export function renderDashboard(root) {
     try {
       const items = await window.go.main.App.LaunchApps();
       await minDelay;
+      console.log("[Dashboard] Launch results:", items);
       const allUp = items.length > 0 && items.every((i) => i.running);
 
       if (allUp) {
+        console.log("[Dashboard] All components running successfully");
         state = "running";
         render();
         return;
@@ -144,6 +147,7 @@ export function renderDashboard(root) {
       render();
     } catch (err) {
       await minDelay;
+      console.error("[Dashboard] Launch catch error:", err);
       await window.go.main.App.StopApps().catch(() => {});
       showError(err.message || String(err));
       state = "idle";
@@ -154,6 +158,7 @@ export function renderDashboard(root) {
   async function stop() {
     clearError();
     state = "stopping";
+    console.log("[Dashboard] Stopping apps...");
     render();
 
     try {

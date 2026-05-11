@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -73,6 +74,7 @@ func DownloadAndApply(release *ReleaseInfo) error {
 	if release == nil {
 		return fmt.Errorf("nil release")
 	}
+	log.Printf("[updater] Starting update to version: %s", release.TagName)
 
 	// Implementation Note: In a real scenario, you should call 
 	// a 'StopAll' command here to ensure files are not locked
@@ -94,6 +96,7 @@ func DownloadAndApply(release *ReleaseInfo) error {
 	if err != nil {
 		return err
 	}
+	log.Printf("[updater] Using temporary directory for update: %s", tmpDir)
 	defer os.RemoveAll(tmpDir)
 
 	var missing []string
@@ -105,11 +108,13 @@ func DownloadAndApply(release *ReleaseInfo) error {
 		}
 
 		zipPath := filepath.Join(tmpDir, asset.Name)
+		log.Printf("[updater] Downloading %s from %s", asset.Name, asset.BrowserDownloadURL)
 		if err := download(asset.BrowserDownloadURL, zipPath); err != nil {
 			return fmt.Errorf("download %s: %w", c.AssetPrefix, err)
 		}
 
 		dest := filepath.Join(installDir, c.Subdir)
+		log.Printf("[updater] Extracting %s to %s", asset.Name, dest)
 		if err := Extract(zipPath, dest); err != nil {
 			return fmt.Errorf("extract %s: %w", c.AssetPrefix, err)
 		}
