@@ -7,7 +7,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/jhakrishan20/skynetgcs/internal/config"
+	"github.com/Rchobbytech-Sols-Pvt-Ltd/skynetgcs/internal/config"
 )
 
 // Stable codes the frontend uses to render user-facing messages.

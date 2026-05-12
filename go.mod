@@ -1,4 +1,4 @@
-module github.com/jhakrishan20/skynetgcs
+module github.com/Rchobbytech-Sols-Pvt-Ltd/skynetgcs
 
 go 1.22.0
 

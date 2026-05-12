@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/jhakrishan20/skynetgcs/internal/config"
+	"github.com/Rchobbytech-Sols-Pvt-Ltd/skynetgcs/internal/config"
 )
 
 type Activation struct {
