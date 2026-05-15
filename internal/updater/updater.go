@@ -30,10 +30,39 @@ func componentInstalledVersion(prefix string) string {
 	return config.AppVersion
 }
 
+// resolveInstallDir returns the directory where component subdirs live,
+// stripping the dev-time build/bin suffix so the result is the project
+// root in both packaged and `wails dev` runs.
+func resolveInstallDir() (string, error) {
+	exe, err := os.Executable()
+	if err != nil {
+		return "", err
+	}
+	dir := filepath.Dir(exe)
+	if strings.HasSuffix(filepath.ToSlash(dir), "/build/bin") {
+		dir = filepath.Dir(filepath.Dir(dir))
+	}
+	return dir, nil
+}
+
+// componentOnDisk reports whether the component's executable exists in
+// either of the two locations startOne searches: <base>/<Subdir>/<Exe>
+// or <base>/<Exe>.
+func componentOnDisk(base string, c config.Component) bool {
+	if _, err := os.Stat(filepath.Join(base, c.Subdir, c.Exe)); err == nil {
+		return true
+	}
+	if _, err := os.Stat(filepath.Join(base, c.Exe)); err == nil {
+		return true
+	}
+	return false
+}
+
 // releaseHasUpdates reports whether any component declared in
-// config.Components is both present in the release AND at a version
-// different from what is recorded on disk. Components missing from the
-// release are ignored (we don't downgrade or flag them).
+// config.Components is both present in the release AND either at a
+// version different from what is recorded on disk OR missing from disk
+// entirely. Components missing from the release are ignored (we don't
+// downgrade or flag them).
 func releaseHasUpdates(release *ReleaseInfo) bool {
 	if release == nil {
 		return false
@@ -42,10 +71,14 @@ func releaseHasUpdates(release *ReleaseInfo) bool {
 	if latestTag == "" {
 		return false
 	}
+	base, _ := resolveInstallDir()
 	for _, c := range config.Components {
 		asset := findAsset(release.Assets, c.AssetPrefix)
 		if asset == nil {
 			continue
+		}
+		if base != "" && !componentOnDisk(base, c) {
+			return true
 		}
 		installed := strings.TrimPrefix(componentInstalledVersion(c.AssetPrefix), "v")
 		if installed != latestTag {
@@ -167,16 +200,9 @@ func DownloadAndApplyContext(ctx context.Context, release *ReleaseInfo, progress
 	// a 'StopAll' command here to ensure files are not locked
 	// by running processes before extraction.
 
-	exePath, err := os.Executable()
+	installDir, err := resolveInstallDir()
 	if err != nil {
 		return err
-	}
-	installDir := filepath.Dir(exePath)
-
-	// If running from build/bin, ensure updates are applied to the
-	// project root instead of the build folder.
-	if strings.HasSuffix(filepath.ToSlash(installDir), "/build/bin") {
-		installDir = filepath.Dir(filepath.Dir(installDir))
 	}
 
 	tmpDir, err := os.MkdirTemp("", "skynetgcs-update-*")
@@ -203,7 +229,8 @@ func DownloadAndApplyContext(ctx context.Context, release *ReleaseInfo, progress
 			continue
 		}
 		installed := strings.TrimPrefix(componentInstalledVersion(c.AssetPrefix), "v")
-		if installed != "" && installed == strings.TrimPrefix(latestTag, "v") {
+		onDisk := componentOnDisk(installDir, c)
+		if onDisk && installed != "" && installed == strings.TrimPrefix(latestTag, "v") {
 			skippedUpToDate = append(skippedUpToDate, c.AssetPrefix)
 			continue
 		}

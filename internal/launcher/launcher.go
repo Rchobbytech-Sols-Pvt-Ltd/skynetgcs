@@ -56,6 +56,27 @@ func installDir() (string, error) {
 	return dir, nil
 }
 
+// MissingComponents returns the AssetPrefix of every component whose
+// executable can't be located on disk. The search mirrors startOne:
+// first <installDir>/<Subdir>/<Exe>, then <installDir>/<Exe>.
+func MissingComponents() ([]string, error) {
+	base, err := installDir()
+	if err != nil {
+		return nil, err
+	}
+	var missing []string
+	for _, c := range config.Components {
+		if _, err := os.Stat(filepath.Join(base, c.Subdir, c.Exe)); err == nil {
+			continue
+		}
+		if _, err := os.Stat(filepath.Join(base, c.Exe)); err == nil {
+			continue
+		}
+		missing = append(missing, c.AssetPrefix)
+	}
+	return missing, nil
+}
+
 func (m *Manager) StartAll() ([]ChildStatus, error) {
 	base, err := installDir()
 	if err != nil {

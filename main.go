@@ -136,6 +136,10 @@ func (a *App) UpdateStatus() UpdateStatus {
 	return a.updateStatus
 }
 
+func (a *App) MissingComponents() ([]string, error) {
+	return launcher.MissingComponents()
+}
+
 func (a *App) LaunchApps() ([]launcher.ChildStatus, error) {
 	return a.manager.StartAll()
 }

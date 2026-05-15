@@ -1,8 +1,10 @@
 // Dashboard states:
-//   idle      → Launch button visible
-//   starting  → spawning children, button disabled with spinner
-//   running   → Stop button visible (red), both children up
-//   stopping  → terminating children, button disabled with spinner
+//   idle       → Launch button visible
+//   starting   → spawning children, button disabled with spinner
+//   running    → Stop button visible (red), both children up
+//   stopping   → terminating children, button disabled with spinner
+//   installing → first-run component install in progress, Launch disabled
+//   blocked    → components still missing after install attempt, Launch disabled
 
 const POLL_INTERVAL_MS = 3000;
 const MIN_LAUNCH_DELAY_MS = 1000;
@@ -111,13 +113,15 @@ export function renderDashboard(root) {
   function render() {
     btn.classList.remove("danger", "pending");
     btn.disabled = false;
-    updateBtn.disabled = updateChecking || state === "running";
+    updateBtn.disabled = updateChecking || state === "running" || state === "installing";
 
     const dotClass = {
       idle: "idle",
       starting: "pending",
       running: "running",
       stopping: "pending",
+      installing: "pending",
+      blocked: "idle",
     }[state];
     dotEl.className = `status-dot ${dotClass}`;
 
@@ -151,6 +155,22 @@ export function renderDashboard(root) {
         statusEl.textContent = "Stopping...";
         statusEl.className = "app-subtitle pending";
         errorEl.hidden = true;
+        break;
+
+      case "installing":
+        btn.classList.add("pending");
+        btn.innerHTML = `<span class="btn-spinner"></span><span>Setting up...</span>`;
+        btn.disabled = true;
+        statusEl.textContent = "Installing components...";
+        statusEl.className = "app-subtitle pending";
+        errorEl.hidden = true;
+        break;
+
+      case "blocked":
+        btn.textContent = "Setup required";
+        btn.disabled = true;
+        statusEl.textContent = "Components not installed";
+        statusEl.className = "app-subtitle";
         break;
     }
   }
@@ -312,6 +332,104 @@ export function renderDashboard(root) {
     }
   }
 
+  async function ensureComponentsInstalled() {
+    let missing;
+    try {
+      missing = await window.go.main.App.MissingComponents();
+    } catch (err) {
+      console.error("[Dashboard] MissingComponents check failed:", err);
+      return;
+    }
+    if (!missing || missing.length === 0) return;
+
+    console.log("[Dashboard] Missing components:", missing);
+    state = "installing";
+    render();
+
+    const ok = await runFirstRunInstall(missing);
+    let stillMissing = [];
+    try {
+      stillMissing = (await window.go.main.App.MissingComponents()) || [];
+    } catch (err) {
+      console.error("[Dashboard] MissingComponents recheck failed:", err);
+    }
+
+    if (ok && stillMissing.length === 0) {
+      state = "idle";
+      // Auto-dismiss the success popup after a moment.
+      setTimeout(() => {
+        if (!downloadInProgress) updateBackdrop.hidden = true;
+      }, 1200);
+    } else {
+      state = "blocked";
+      showError(
+        "Components couldn't be installed. Click the update button to retry.",
+      );
+    }
+    render();
+  }
+
+  async function runFirstRunInstall(missing) {
+    updateBackdrop.hidden = false;
+    setUpdatePopup({
+      message: `Setting up components (${missing.join(", ")})...`,
+      checking: true,
+      tone: "pending",
+    });
+
+    let release;
+    try {
+      const result = await window.go.main.App.CheckForUpdates();
+      release = result && result.release;
+      if (!release) {
+        setUpdatePopup({
+          message: "No release available. Check your connection and try again.",
+          tone: "error",
+        });
+        return false;
+      }
+    } catch (err) {
+      setUpdatePopup({
+        message: `Couldn't reach update server: ${err.message || String(err)}`,
+        tone: "error",
+      });
+      return false;
+    }
+
+    const runId = downloadRunId + 1;
+    downloadRunId = runId;
+    setUpdatePopup({
+      message: "Downloading components...",
+      release,
+      tone: "pending",
+      downloading: true,
+    });
+    startDownloadProgressPolling();
+
+    try {
+      await window.go.main.App.DownloadUpdate(release);
+      if (downloadRunId !== runId) return false;
+      stopDownloadProgressPolling();
+      downloadPercentEl.textContent = "100%";
+      setUpdatePopup({
+        message: "Components installed.",
+        tone: "success",
+      });
+      return true;
+    } catch (err) {
+      if (downloadRunId !== runId) return false;
+      stopDownloadProgressPolling();
+      const message = err.message || String(err);
+      const cancelled =
+        message.includes("canceled") || message.includes("cancelled");
+      setUpdatePopup({
+        message: cancelled ? "Install cancelled." : message,
+        tone: cancelled ? "pending" : "error",
+      });
+      return false;
+    }
+  }
+
   async function cancelDownloadAndClose() {
     const wasDownloading = downloadInProgress;
     downloadRunId += 1;
@@ -349,6 +467,19 @@ export function renderDashboard(root) {
         message: "Update downloaded successfully.",
         tone: "success",
       });
+      if (state === "blocked") {
+        try {
+          const stillMissing =
+            (await window.go.main.App.MissingComponents()) || [];
+          if (stillMissing.length === 0) {
+            clearError();
+            state = "idle";
+            render();
+          }
+        } catch (err) {
+          console.error("[Dashboard] post-update recheck failed:", err);
+        }
+      }
     } catch (err) {
       if (downloadRunId !== runId) return;
       stopDownloadProgressPolling();
@@ -391,6 +522,7 @@ export function renderDashboard(root) {
   });
 
   syncFromBackend();
+  ensureComponentsInstalled();
   pollTimer = setInterval(syncFromBackend, POLL_INTERVAL_MS);
 
   return () => {
