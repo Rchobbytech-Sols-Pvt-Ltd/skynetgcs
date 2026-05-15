@@ -35,6 +35,84 @@ func activationPath() (string, error) {
 	return filepath.Join(dir, "activation.json"), nil
 }
 
+type ComponentRecord struct {
+	Version      string    `json:"version"`
+	AssetName    string    `json:"asset_name,omitempty"`
+	DownloadedAt time.Time `json:"downloaded_at"`
+}
+
+type DownloadRecord struct {
+	Components map[string]ComponentRecord `json:"components"`
+}
+
+func downloadRecordPath() (string, error) {
+	dir, err := dataDir()
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(dir, "downloaded.json"), nil
+}
+
+func LoadDownloadRecord() (*DownloadRecord, error) {
+	path, err := downloadRecordPath()
+	if err != nil {
+		return nil, err
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return &DownloadRecord{Components: map[string]ComponentRecord{}}, nil
+		}
+		return nil, err
+	}
+	var r DownloadRecord
+	if err := json.Unmarshal(data, &r); err != nil {
+		return nil, err
+	}
+	if r.Components == nil {
+		r.Components = map[string]ComponentRecord{}
+	}
+	return &r, nil
+}
+
+func saveDownloadRecord(r *DownloadRecord) error {
+	path, err := downloadRecordPath()
+	if err != nil {
+		return err
+	}
+	data, err := json.MarshalIndent(r, "", "  ")
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(path, data, 0o600)
+}
+
+// SaveComponentDownload records that the named component was successfully
+// downloaded from the given release tag. The key should be the component's
+// AssetPrefix as declared in config.Components.
+func SaveComponentDownload(key, version, assetName string) error {
+	r, err := LoadDownloadRecord()
+	if err != nil {
+		return err
+	}
+	r.Components[key] = ComponentRecord{
+		Version:      version,
+		AssetName:    assetName,
+		DownloadedAt: time.Now().UTC(),
+	}
+	return saveDownloadRecord(r)
+}
+
+// ComponentVersion returns the recorded version of the named component, or
+// an empty string if none has been recorded.
+func ComponentVersion(key string) string {
+	r, err := LoadDownloadRecord()
+	if err != nil || r == nil {
+		return ""
+	}
+	return r.Components[key].Version
+}
+
 func SaveActivation(key string) error {
 	path, err := activationPath()
 	if err != nil {

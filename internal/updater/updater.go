@@ -3,7 +3,6 @@ package updater
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -16,7 +15,45 @@ import (
 	"time"
 
 	"github.com/Rchobbytech-Sols-Pvt-Ltd/skynetgcs/internal/config"
+	"github.com/Rchobbytech-Sols-Pvt-Ltd/skynetgcs/internal/storage"
 )
+
+// componentInstalledVersion returns the recorded version of the given
+// component. If nothing has been recorded yet (e.g. this launcher build
+// shipped before per-component tracking, or the user has never run an
+// update), we fall back to the launcher's compiled-in AppVersion — the
+// build is assumed to match its release tag's components.
+func componentInstalledVersion(prefix string) string {
+	if v := storage.ComponentVersion(prefix); v != "" {
+		return v
+	}
+	return config.AppVersion
+}
+
+// releaseHasUpdates reports whether any component declared in
+// config.Components is both present in the release AND at a version
+// different from what is recorded on disk. Components missing from the
+// release are ignored (we don't downgrade or flag them).
+func releaseHasUpdates(release *ReleaseInfo) bool {
+	if release == nil {
+		return false
+	}
+	latestTag := strings.TrimPrefix(release.TagName, "v")
+	if latestTag == "" {
+		return false
+	}
+	for _, c := range config.Components {
+		asset := findAsset(release.Assets, c.AssetPrefix)
+		if asset == nil {
+			continue
+		}
+		installed := strings.TrimPrefix(componentInstalledVersion(c.AssetPrefix), "v")
+		if installed != latestTag {
+			return true
+		}
+	}
+	return false
+}
 
 type ReleaseAsset struct {
 	Name               string `json:"name"`
@@ -53,7 +90,7 @@ func githubLatestURL() string {
 }
 
 func CheckForUpdate() (*UpdateCheckResult, error) {
-	log.Printf("[updater] Checking for updates. Current version: %s", config.AppVersion)
+	log.Printf("[updater] Checking for updates. Launcher version: %s", config.AppVersion)
 	release, err := CheckLatest()
 	if err != nil {
 		log.Printf("[updater] Check for updates failed: %v", err)
@@ -61,8 +98,19 @@ func CheckForUpdate() (*UpdateCheckResult, error) {
 	}
 
 	log.Printf("[updater] Latest release found: %s", release.TagName)
+	for _, c := range config.Components {
+		recorded := storage.ComponentVersion(c.AssetPrefix)
+		effective := componentInstalledVersion(c.AssetPrefix)
+		source := "recorded"
+		if recorded == "" {
+			source = "fallback=AppVersion"
+		}
+		present := findAsset(release.Assets, c.AssetPrefix) != nil
+		log.Printf("[updater]   component %s: installed=%s (%s), in-release=%t", c.AssetPrefix, effective, source, present)
+	}
+
 	return &UpdateCheckResult{
-		UpdateAvailable: IsNewer(release),
+		UpdateAvailable: releaseHasUpdates(release),
 		CurrentVersion:  config.AppVersion,
 		LatestVersion:   release.TagName,
 		Release:         release,
@@ -97,13 +145,12 @@ func CheckLatest() (*ReleaseInfo, error) {
 	return &info, nil
 }
 
+// IsNewer is kept for callers that want the old single-version check.
+// Internally, update detection now goes through releaseHasUpdates so that
+// partial releases (missing one of the components) don't cause false
+// positives on the dashboard.
 func IsNewer(release *ReleaseInfo) bool {
-	if release == nil {
-		return false
-	}
-	current := strings.TrimPrefix(config.AppVersion, "v")
-	latest := strings.TrimPrefix(release.TagName, "v")
-	return latest != "" && latest != current
+	return releaseHasUpdates(release)
 }
 
 func DownloadAndApply(release *ReleaseInfo) error {
@@ -139,21 +186,40 @@ func DownloadAndApplyContext(ctx context.Context, release *ReleaseInfo, progress
 	log.Printf("[updater] Using temporary directory for update: %s", tmpDir)
 	defer os.RemoveAll(tmpDir)
 
-	var missing []string
+	// Build the download list from whatever components are present in the
+	// release. Components missing from the release are skipped — this is a
+	// partial-release-friendly flow: an HCI-only release should update HCI
+	// without touching AirUnit. Components that already match the release
+	// tag are also skipped so we don't re-download identical assets.
+	latestTag := release.TagName
 	var downloads []componentAsset
 	var totalBytes int64
+	var skippedUpToDate []string
+	var skippedAbsent []string
 	for _, c := range config.Components {
 		asset := findAsset(release.Assets, c.AssetPrefix)
 		if asset == nil {
-			missing = append(missing, c.AssetPrefix)
+			skippedAbsent = append(skippedAbsent, c.AssetPrefix)
+			continue
+		}
+		installed := strings.TrimPrefix(componentInstalledVersion(c.AssetPrefix), "v")
+		if installed != "" && installed == strings.TrimPrefix(latestTag, "v") {
+			skippedUpToDate = append(skippedUpToDate, c.AssetPrefix)
 			continue
 		}
 		downloads = append(downloads, componentAsset{component: c, asset: asset})
 		totalBytes += asset.Size
 	}
 
-	if len(missing) > 0 {
-		return errors.New("missing release assets: " + strings.Join(missing, ", "))
+	if len(skippedAbsent) > 0 {
+		log.Printf("[updater] Release %s does not contain: %s — leaving installed versions untouched", latestTag, strings.Join(skippedAbsent, ", "))
+	}
+	if len(skippedUpToDate) > 0 {
+		log.Printf("[updater] Already at %s for: %s", latestTag, strings.Join(skippedUpToDate, ", "))
+	}
+	if len(downloads) == 0 {
+		log.Printf("[updater] Nothing to download for release %s", latestTag)
+		return nil
 	}
 
 	var downloadedBytes int64
@@ -181,6 +247,12 @@ func DownloadAndApplyContext(ctx context.Context, release *ReleaseInfo, progress
 		log.Printf("[updater] Extracting %s to %s", item.asset.Name, dest)
 		if err := ExtractContext(ctx, zipPath, dest); err != nil {
 			return fmt.Errorf("extract %s: %w", item.component.AssetPrefix, err)
+		}
+
+		if err := storage.SaveComponentDownload(item.component.AssetPrefix, release.TagName, item.asset.Name); err != nil {
+			log.Printf("[updater] Warning: failed to record %s @ %s: %v", item.component.AssetPrefix, release.TagName, err)
+		} else {
+			log.Printf("[updater] Recorded %s @ %s", item.component.AssetPrefix, release.TagName)
 		}
 	}
 
