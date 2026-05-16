@@ -54,7 +54,7 @@ You'll need administrator rights for the **installation only**, not for everyday
 
 ### 1. Download the installer
 
-Get the latest `SkynetGCS-Setup-vX.Y.Z.exe` from the [official releases page](https://github.com/jhakrishan20/skynetgcs/releases/latest).
+Get the latest `skynetgcs-launcher-setup.exe` from the [official releases page](https://github.com/jhakrishan20/skynetgcs/releases/latest).
 
 > Always download from the official link above. Do not install Skynet GCS from third-party mirrors.
 
@@ -63,13 +63,13 @@ Get the latest `SkynetGCS-Setup-vX.Y.Z.exe` from the [official releases page](ht
 Double-click the installer. Windows SmartScreen may warn you the first time — click **More info → Run anyway** to continue.
 
 The installer will:
-- Install the launcher to `C:\Program Files\Skynet GCS\`
+- Install the launcher to `C:\Program Files\Skynet GCS Launcher\`
 - Create Start Menu shortcuts (and a Desktop shortcut if you opt in)
 - Offer to launch the app when finished
 
 ### 3. Activate your license (first launch only)
 
-The first time you open Skynet GCS, you'll see the **Activation** screen.
+The first time you open Skynet GCS Launcher, you'll see the **Activation** screen.
 
 1. Enter the activation key from your purchase email (format: `XXXX-XXXX-XXXX-XXXX`).
 2. Click **Activate**.
@@ -110,7 +110,7 @@ Click **Stop**. Both components are terminated cleanly and the launcher returns 
 
 ## Updates
 
-Skynet GCS checks our official release server for updates. When a new version is available, the launcher can download and install it in place — no manual reinstall needed.
+Skynet GCS Launcher checks our official release server for updates. When a new version is available, it can download and install components in place — no manual reinstall needed.
 
 The update process:
 1. Stops running components
@@ -137,7 +137,7 @@ You can keep using older versions, but for security patches we recommend staying
 
 ### "Resource not found" when clicking Launch
 - The drone components (`airunit`, `hci`) aren't installed yet, or are corrupted.
-- Use the in-app update flow to fetch them, or reinstall Skynet GCS.
+- Use the in-app update flow to fetch them, or reinstall Skynet GCS Launcher.
 
 ### App won't open after installation
 - Confirm your Windows version meets the requirements above.
@@ -146,13 +146,13 @@ You can keep using older versions, but for security patches we recommend staying
 
 ### Where is my data stored?
 - **Activation file:** `%APPDATA%\SkynetGCS\activation.json`
-- **Application binaries:** `C:\Program Files\Skynet GCS\` (or your custom install path)
+- **Application binaries:** `C:\Program Files\Skynet GCS Launcher\` (or your custom install path)
 
 ---
 
 ## Uninstalling
 
-**Settings → Apps → Installed apps → Skynet GCS → Uninstall**, or run the uninstaller from the Start Menu folder.
+**Settings → Apps → Installed apps → Skynet GCS Launcher → Uninstall**, or run the uninstaller from the Start Menu folder.
 
 To remove user data as well (activation, cached files):
 
@@ -169,7 +169,7 @@ Remove-Item $env:APPDATA\SkynetGCS -Recurse -Force
 - **Documentation:** https://github.com/jhakrishan20/skynetgcs
 
 When reporting a problem, please include:
-- Your Skynet GCS version (visible in the launcher window title or About dialog)
+- Your Skynet GCS Launcher version (visible in the launcher window title or About dialog)
 - Windows version (`winver`)
 - A description of what you were doing when the issue occurred
 
