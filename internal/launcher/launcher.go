@@ -8,6 +8,7 @@ import (
 	"sync"
 
 	"github.com/Rchobbytech-Sols-Pvt-Ltd/skynetgcs/internal/config"
+	"github.com/Rchobbytech-Sols-Pvt-Ltd/skynetgcs/internal/storage"
 )
 
 // Stable codes the frontend uses to render user-facing messages.
@@ -85,17 +86,22 @@ func (m *Manager) StartAll() ([]ChildStatus, error) {
 	}
 	log.Printf("[launcher] Starting all components. Base directory: %s", base)
 
+	settings, err := storage.LoadSettings()
+	if err != nil {
+		log.Printf("[launcher] Failed to load settings, defaulting to hidden consoles: %v", err)
+	}
+
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
 	results := make([]ChildStatus, 0, len(config.Components))
 	for _, c := range config.Components {
-		results = append(results, m.startOne(base, c))
+		results = append(results, m.startOne(base, c, settings.ShowComponentConsoles))
 	}
 	return results, nil
 }
 
-func (m *Manager) startOne(base string, c config.Component) ChildStatus {
+func (m *Manager) startOne(base string, c config.Component, showConsole bool) ChildStatus {
 	status := ChildStatus{Name: c.Subdir}
 
 	if child, ok := m.children[c.Subdir]; ok {
@@ -128,7 +134,7 @@ func (m *Manager) startOne(base string, c config.Component) ChildStatus {
 		"PYTHONUNBUFFERED=1",
 	)
 
-	child, err := startProcess(exePath, filepath.Dir(exePath), env)
+	child, err := startProcess(exePath, filepath.Dir(exePath), env, showConsole)
 	if err != nil {
 		log.Printf("[launcher] %s spawn failed: %v", c.Subdir, err)
 		status.Code = CodeSpawnFailed
