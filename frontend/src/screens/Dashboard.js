@@ -54,6 +54,12 @@ export function renderDashboard(root) {
               <span id="app-status" class="app-subtitle">Stopped</span>
             </div>
             <div class="app-actions">
+              <button id="settings-btn" class="icon-btn" type="button" title="Settings" aria-label="Settings">
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <circle cx="12" cy="12" r="3"></circle>
+                  <path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"></path>
+                </svg>
+              </button>
               <button id="update-btn" class="icon-btn" type="button" title="Check for updates" aria-label="Check for updates">
                 <svg viewBox="0 0 24 24" aria-hidden="true">
                   <path d="M12 3v12"></path>
@@ -67,6 +73,19 @@ export function renderDashboard(root) {
         </ul>
         <p id="control-error" class="error" hidden></p>
       </section>
+      <div id="settings-backdrop" class="modal-backdrop" hidden>
+        <section class="update-popup" role="dialog" aria-modal="true" aria-labelledby="settings-title">
+          <button id="settings-close-btn" class="modal-close" type="button" aria-label="Close settings">&times;</button>
+          <h3 id="settings-title">Settings</h3>
+          <label class="setting-row">
+            <input id="setting-show-consoles" type="checkbox" />
+            <span class="setting-text">
+              <span class="setting-label">Debug mode</span>
+              <span class="setting-hint">Show logs in a terminal window.</span>
+            </span>
+          </label>
+        </section>
+      </div>
       <div id="update-backdrop" class="modal-backdrop" hidden>
         <section class="update-popup" role="dialog" aria-modal="true" aria-labelledby="update-title">
           <span id="download-indicator" class="download-indicator" title="Downloading" aria-label="Downloading" hidden>
@@ -91,6 +110,10 @@ export function renderDashboard(root) {
 
   const btn = root.querySelector("#primary-btn");
   const updateBtn = root.querySelector("#update-btn");
+  const settingsBtn = root.querySelector("#settings-btn");
+  const settingsBackdrop = root.querySelector("#settings-backdrop");
+  const settingsCloseBtn = root.querySelector("#settings-close-btn");
+  const showConsolesCheckbox = root.querySelector("#setting-show-consoles");
   const updateBackdrop = root.querySelector("#update-backdrop");
   const updateCloseBtn = root.querySelector("#update-close-btn");
   const updateMessageEl = root.querySelector("#update-message");
@@ -494,12 +517,42 @@ export function renderDashboard(root) {
     }
   }
 
+  async function openSettings() {
+    try {
+      const s = await window.go.main.App.GetSettings();
+      showConsolesCheckbox.checked = !!(s && s.show_component_consoles);
+    } catch (err) {
+      console.error("[Dashboard] GetSettings failed:", err);
+      showConsolesCheckbox.checked = false;
+    }
+    settingsBackdrop.hidden = false;
+  }
+
+  async function persistSettings() {
+    try {
+      await window.go.main.App.SetSettings({
+        show_component_consoles: showConsolesCheckbox.checked,
+      });
+    } catch (err) {
+      console.error("[Dashboard] SetSettings failed:", err);
+    }
+  }
+
   btn.addEventListener("click", () => {
     if (state === "idle") start();
     else if (state === "running") stop();
   });
 
   updateBtn.addEventListener("click", checkForUpdates);
+
+  settingsBtn.addEventListener("click", openSettings);
+  settingsCloseBtn.addEventListener("click", () => {
+    settingsBackdrop.hidden = true;
+  });
+  settingsBackdrop.addEventListener("click", (event) => {
+    if (event.target === settingsBackdrop) settingsBackdrop.hidden = true;
+  });
+  showConsolesCheckbox.addEventListener("change", persistSettings);
 
   updateCloseBtn.addEventListener("click", () => {
     cancelDownloadAndClose();
