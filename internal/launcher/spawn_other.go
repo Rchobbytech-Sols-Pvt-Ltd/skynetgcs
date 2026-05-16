@@ -4,7 +4,7 @@ package launcher
 
 import "os/exec"
 
-func startProcess(exePath, dir string, env []string) (*childProcess, error) {
+func startProcess(exePath, dir string, env []string, _ bool) (*childProcess, error) {
 	cmd := exec.Command(exePath)
 	cmd.Dir = dir
 	cmd.Env = env
