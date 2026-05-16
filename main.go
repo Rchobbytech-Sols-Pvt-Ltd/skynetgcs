@@ -152,6 +152,14 @@ func (a *App) AppsStatus() []launcher.ChildStatus {
 	return a.manager.Status()
 }
 
+func (a *App) GetSettings() (storage.Settings, error) {
+	return storage.LoadSettings()
+}
+
+func (a *App) SetSettings(s storage.Settings) error {
+	return storage.SaveSettings(s)
+}
+
 func main() {
 	// Ensure only one instance of the app runs at a time by attempting to listen on a local port.
 	// The OS will automatically release this lock if the process crashes or exits.
@@ -165,7 +173,7 @@ func main() {
 	app := NewApp()
 
 	err = wails.Run(&options.App{
-		Title:     "Skynet GCS",
+		Title:     "Skynet GCS Launcher",
 		Width:     900,
 		Height:    600,
 		MinWidth:  900,
