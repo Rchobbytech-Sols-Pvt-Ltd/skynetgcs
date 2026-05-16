@@ -113,6 +113,49 @@ func ComponentVersion(key string) string {
 	return r.Components[key].Version
 }
 
+type Settings struct {
+	ShowComponentConsoles bool `json:"show_component_consoles"`
+}
+
+func settingsPath() (string, error) {
+	dir, err := dataDir()
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(dir, "settings.json"), nil
+}
+
+func LoadSettings() (Settings, error) {
+	path, err := settingsPath()
+	if err != nil {
+		return Settings{}, err
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return Settings{}, nil
+		}
+		return Settings{}, err
+	}
+	var s Settings
+	if err := json.Unmarshal(data, &s); err != nil {
+		return Settings{}, err
+	}
+	return s, nil
+}
+
+func SaveSettings(s Settings) error {
+	path, err := settingsPath()
+	if err != nil {
+		return err
+	}
+	data, err := json.MarshalIndent(s, "", "  ")
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(path, data, 0o600)
+}
+
 func SaveActivation(key string) error {
 	path, err := activationPath()
 	if err != nil {
