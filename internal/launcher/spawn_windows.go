@@ -14,9 +14,10 @@ const (
 	createUnicodeEnvironment = 0x00000400
 	startfUseShowWindow      = 0x00000001
 	swHide                   = 0
+	swShow                   = 5
 )
 
-func startProcess(exePath, dir string, env []string) (*childProcess, error) {
+func startProcess(exePath, dir string, env []string, showConsole bool) (*childProcess, error) {
 	cmdLine, err := windows.UTF16PtrFromString(`"` + exePath + `"`)
 	if err != nil {
 		return nil, err
@@ -34,10 +35,14 @@ func startProcess(exePath, dir string, env []string) (*childProcess, error) {
 		return nil, err
 	}
 
+	show := uint16(swHide)
+	if showConsole {
+		show = swShow
+	}
 	startupInfo := windows.StartupInfo{
 		Cb:         uint32(unsafe.Sizeof(windows.StartupInfo{})),
 		Flags:      startfUseShowWindow,
-		ShowWindow: swHide,
+		ShowWindow: show,
 	}
 	var processInfo windows.ProcessInformation
 
