@@ -9,7 +9,7 @@ const (
 	GitHubRepo  = "skynetgcs"
 
 	AppName    = "SkynetGCS"
-	AppVersion = "0.1.4"
+	AppVersion = "0.1.5"
 )
 
 // Component declares one piece of the GCS bundle that lives as a separate
