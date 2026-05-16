@@ -1,10 +1,10 @@
-; Inno Setup script for Skynet GCS
+; Inno Setup script for Skynet GCS Launcher
 ; Build with: iscc installer\setup.iss
 
-#define AppName       "Skynet GCS"
+#define AppName       "Skynet GCS Launcher"
 #define AppVersion    "0.1.0"
 #define AppPublisher  "Drones Tech Lab"
-#define AppExeName    "skynetgcs.exe"
+#define AppExeName    "skynetgcs-launcher.exe"
 
 [Setup]
 AppId={{C7C2B7D4-9F1A-4F3E-9A6F-SKYNETGCS01}}
@@ -15,7 +15,7 @@ DefaultDirName={autopf}\{#AppName}
 DefaultGroupName={#AppName}
 DisableProgramGroupPage=yes
 OutputDir=..\build\installer
-OutputBaseFilename=skynetgcs-setup
+OutputBaseFilename=skynetgcs-launcher-setup
 SetupIconFile=..\build\windows\icon.ico
 Compression=lzma2
 SolidCompression=yes
@@ -31,7 +31,7 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"; Flags: unchecked
 
 [Files]
-Source: "..\build\bin\skynetgcs.exe"; DestDir: "{app}"; Flags: ignoreversion
+Source: "..\build\bin\skynetgcs-launcher.exe"; DestDir: "{app}"; Flags: ignoreversion
 
 [Icons]
 Name: "{group}\{#AppName}"; Filename: "{app}\{#AppExeName}"
