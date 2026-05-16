@@ -12,7 +12,7 @@ export function renderActivation(root, { onActivated }) {
   root.innerHTML = `
     <main class="screen activation">
       <div class="card">
-        <h1>Activate Skynet GCS</h1>
+        <h1>Activate Skynet GCS Launcher</h1>
         <p class="subtitle">Enter the activation key emailed to you.</p>
         <form id="activation-form" novalidate>
           <input
